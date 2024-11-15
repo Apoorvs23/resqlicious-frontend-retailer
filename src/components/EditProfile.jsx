@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { useAuth } from "./AuthContext";
+import { useNavigate } from "react-router-dom";
+import { backend_url } from "../Constants";
 
 const EditProfile = () => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [restaurant, setRestaurant] = useState({
     id: "",
     name: "",
@@ -13,27 +18,36 @@ const EditProfile = () => {
     phone: "",
     email: "",
   });
+  const [isNewRestaurant, setIsNewRestaurant] = useState(false);
 
   useEffect(() => {
-    const fetchRestaurant = async () => {
-      const token = localStorage.getItem("retailertoken");
-      try {
-        const response = await axios.get(
-          "http://localhost:8080/api/v1/restaurants/1",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+    const fetchUserRestaurants = async () => {
+      if (isAuthenticated && user) {
+        const token = localStorage.getItem("retailertoken");
+        try {
+          const response = await axios.get(
+            `${backend_url}/users/${user.userId}/restaurants`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          if (response.data.length === 0) {
+            setIsNewRestaurant(true);
+          } else {
+            setRestaurant(response.data[0]);
           }
-        );
-        setRestaurant(response.data);
-      } catch (error) {
-        console.error("Error fetching restaurant data:", error);
+        } catch (error) {
+          console.error("Error fetching user restaurants:", error);
+          localStorage.removeItem("retailertoken");
+          navigate("/login");
+        }
       }
     };
 
-    fetchRestaurant();
-  }, []);
+    fetchUserRestaurants();
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -47,19 +61,32 @@ const EditProfile = () => {
     e.preventDefault();
     const token = localStorage.getItem("retailertoken");
     try {
-      await axios.put(
-        `http://localhost:8080/api/v1/restaurants/${restaurant.id}`,
-        restaurant,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      alert("Restaurant updated successfully!");
+      if (isNewRestaurant) {
+        await axios.post(
+          `${backend_url}/restaurants`,
+          { ...restaurant, userId: user.userId },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        alert("Restaurant added successfully!");
+      } else {
+        await axios.put(
+          `${backend_url}/restaurants/${restaurant.id}`,
+          restaurant,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        alert("Restaurant updated successfully!");
+      }
     } catch (error) {
-      console.error("Error updating restaurant data:", error);
-      alert("Failed to update restaurant. Please try again.");
+      console.error("Error saving restaurant data:", error);
+      alert("Failed to save restaurant. Please try again.");
     }
   };
 
@@ -67,7 +94,7 @@ const EditProfile = () => {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg overflow-hidden p-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          Edit Restaurant
+          {isNewRestaurant ? "Add Restaurant" : "Edit Restaurant"}
         </h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -156,7 +183,7 @@ const EditProfile = () => {
             type="submit"
             className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
           >
-            Save Changes
+            {isNewRestaurant ? "Add Restaurant" : "Save Changes"}
           </button>
         </form>
       </div>
